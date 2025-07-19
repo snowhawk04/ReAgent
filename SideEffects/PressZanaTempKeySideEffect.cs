@@ -54,5 +54,5 @@ public record PressZanaTempKeySideEffect(string ShortName, HotkeyNodeValue Key0,
         return SideEffectApplicationResult.AppliedUnique;
     }
 
-    public override string ToString() => $"Press Zana Temp Key \"{ShortName}\" \[{Key0}, {Key1}, {Key2}\]";
+    public override string ToString() => $"Press Zana Temp Key \"{ShortName}\" [{Key0}, {Key1}, {Key2}]";
 }
