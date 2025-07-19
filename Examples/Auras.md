@@ -1,6 +1,6 @@
 ## Hatred
 
-Action Type
+Action Type: Key
 
 ```csharp
 !Buffs.Has("player_aura_cold_damage") && Skills["Hatred"].Exists && Skills["Hatred"].CanBeUsed
@@ -10,7 +10,7 @@ Action Type
 
 Action Type: Key
 
-```
+```csharp
 !Buffs.Has("skitterbots_buff") && Skills["SummonSkitterbots"].Exists && SinceLastActivation(1.0)
 ```
 
