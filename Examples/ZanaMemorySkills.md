@@ -74,7 +74,7 @@ Skills["ZanaInfluenceMemoryofImpatience"].Exists &&
 SinceLastActivation(3.0) && (
     MonsterCount(40, MonsterRarity.AtLeastRare) > 0
  || MonsterCount(40, MonsterRarity.Magic) > 5
- || MonsterCount(50, MonsterRarity.Normal) > 15
+ || MonsterCount(40, MonsterRarity.Normal) > 10
 ) ? new ISideEffect[] {
     PressZanaTempKeySideEffect("Impatience", Keys.F1, Keys.F2, Keys.F3)
 } : null
@@ -147,7 +147,7 @@ Action Type: Multiple Side Effects
 ```
 Skills["ZanaInfluenceMemoryofSuspicion"].Exists &&
 SinceLastActivation(3.0) && (
-    MonsterCount(40, MonsterRarity.Normal) > 15
+    MonsterCount(40, MonsterRarity.Normal) > 10
 ) ? new ISideEffect[] {
     PressZanaTempKeySideEffect("Suspicion", Keys.F1, Keys.F2, Keys.F3)
 } : null
