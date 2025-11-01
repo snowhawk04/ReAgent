@@ -33,7 +33,7 @@ Flasks[2].CanBeUsed
 
 ## Group of HP flasks
 
-Action Type: Multiple Side Effects
+Action Type: Single Side Effect
 
 ```csharp
 SinceLastActivation(0.5) &&
@@ -71,4 +71,5 @@ Flasks[4].Charges >= 30
 ? new ISideEffect[]{PressKeySideEffect(Keys.W)}
 : null
 ```
+
 
