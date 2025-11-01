@@ -1,3 +1,14 @@
+## Blood Rage
+
+Action Type: Key
+
+```csharp
+SinceLastActivation(0.5) &&
+Skills["BloodRage"].CanBeUsed &&
+!Buffs.Has("blood_rage") &&
+Vitals.HP.Percent >= 90
+```
+
 ## Call of Steel
 
 Action Type: Key
@@ -42,3 +53,14 @@ Monsters(1).Any() &&
 ```
 
 Note: A better version would also toggle off plague bearer when no monsters are around.
+
+## Withering Step
+
+Action Type: Key
+
+```csharp
+Skills["WitheringStep"].Exists &&
+SinceLastActivation(3.0) &&
+Skills["WitheringStep"].CanBeUsed &&
+MonsterCount(20, MonsterRarity.AtLeastRare) > 0
+```
