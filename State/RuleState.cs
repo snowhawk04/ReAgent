@@ -1,12 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Numerics;
 using System.Threading;
 using System.Windows.Forms;
 using ExileCore;
 using ExileCore.PoEMemory.Components;
 using ExileCore.PoEMemory.MemoryObjects;
 using ExileCore.Shared.Enums;
+using ExileCore.Shared.Helpers;
 
 namespace ReAgent.State;
 
@@ -19,6 +21,7 @@ public class RuleState
     private readonly RuleInternalState _internalState;
     private readonly Lazy<List<EntityInfo>> _ingameiconObjects;
     private readonly Lazy<List<EntityInfo>> _miniMonoliths;
+    private readonly Lazy<List<EntityInfo>> _terrainEntities;
 
     private readonly Lazy<List<EntityInfo>> _effects;
     private readonly Lazy<List<MonsterInfo>> _allMonsters;
@@ -28,6 +31,7 @@ public class RuleState
     private readonly Lazy<List<MonsterInfo>> _corpses;
     private readonly Lazy<List<EntityInfo>> _portals;
     private readonly Lazy<StatDictionary> _mapStats;
+    private readonly GameController _controller;
 
     public RuleInternalState InternalState => _internalState.AccessForbidden ? throw new Exception("Access denied") : _internalState;
 
@@ -35,86 +39,69 @@ public class RuleState
     {
         _internalState = internalState;
         var controller = plugin.GameController;
-        if (controller == null) return;
-        GameController = controller;
-        IsInHideout = plugin.GameController.Area.CurrentArea.IsHideout;
-        IsInTown = plugin.GameController.Area.CurrentArea.IsTown;
-        IsInPeacefulArea = plugin.GameController.Area.CurrentArea.IsPeaceful;
-        IsInEscapeMenu = plugin.GameController.Game.IsEscapeState;
-        AreaName = plugin.GameController.Area.CurrentArea.Name;
-
-        var player = controller.Player;
-        if (player.TryGetComponent<Buffs>(out var playerBuffs))
+        _controller = controller;
+        if (controller != null)
         {
-            Ailments = plugin.CustomAilments
-                .Where(x => x.Value.Any(playerBuffs.HasBuff))
-                .Select(x => x.Key)
-                .ToHashSet();
-        }
+            IsInHideout = plugin.GameController.Area.CurrentArea.IsHideout;
+            IsInTown = plugin.GameController.Area.CurrentArea.IsTown;
+            IsInPeacefulArea = plugin.GameController.Area.CurrentArea.IsPeaceful;
+            IsInEscapeMenu = plugin.GameController.Game.IsEscapeState;
+            AreaName = plugin.GameController.Area.CurrentArea.Name;
 
-        if (player.TryGetComponent<Life>(out var lifeComponent))
-        {
-            Vitals = new VitalsInfo(lifeComponent);
-        }
+            var player = controller.Player;
+            if (player.TryGetComponent<Buffs>(out var playerBuffs))
+            {
+                Ailments = plugin.CustomAilments
+                    .Where(x => x.Value.Any(playerBuffs.HasBuff))
+                    .Select(x => x.Key)
+                    .ToHashSet();
+            }
 
-        if (player.TryGetComponent<Actor>(out var actorComponent))
-        {
-            Animation = actorComponent.Animation;
-            IsMoving = actorComponent.isMoving;
-            Skills = new SkillDictionary(controller, player, true);
-            WeaponSwapSkills = new SkillDictionary(controller, player, false);
-            AnimationId = actorComponent.AnimationController?.CurrentAnimationId ?? 0;
-            AnimationStage = actorComponent.AnimationController?.CurrentAnimationStage ?? 0;
-        }
+            if (player.TryGetComponent<Life>(out var lifeComponent))
+            {
+                Vitals = new VitalsInfo(lifeComponent);
+            }
 
-        _mapStats = new Lazy<StatDictionary>(() => new StatDictionary(controller.IngameState.Data.MapStats),
-            LazyThreadSafetyMode.None);
+            if (player.TryGetComponent<Actor>(out var actorComponent))
+            {
+                Animation = actorComponent.Animation;
+                IsMoving = actorComponent.isMoving;
+                Skills = new SkillDictionary(controller, player, true);
+                WeaponSwapSkills = new SkillDictionary(controller, player, false);
+                AnimationId = actorComponent.AnimationController?.CurrentAnimationId ?? 0;
+                AnimationStage = actorComponent.AnimationController?.CurrentAnimationStage ?? 0;
+            }
 
-        Buffs = new BuffDictionary(playerBuffs?.BuffsList ?? [], Skills);
-
-        Flasks = new FlasksInfo(controller, InternalState);
-        Player = new MonsterInfo(controller, player);
-        _nearbyMonsterInfo =
-            new Lazy<NearbyMonsterInfo>(() => new NearbyMonsterInfo(plugin), LazyThreadSafetyMode.None);
-        _miscellaneousObjects = new Lazy<List<EntityInfo>>(
-            () => controller.EntityListWrapper.ValidEntitiesByType[EntityType.MiscellaneousObjects]
-                .Select(x => new EntityInfo(controller, x)).ToList(), LazyThreadSafetyMode.None);
-        _noneEntities = new Lazy<List<EntityInfo>>(
-            () => controller.EntityListWrapper.ValidEntitiesByType[EntityType.None]
-                .Select(x => new EntityInfo(controller, x)).ToList(), LazyThreadSafetyMode.None);
-        _ingameiconObjects = new Lazy<List<EntityInfo>>(
-            () => controller.EntityListWrapper.ValidEntitiesByType[EntityType.IngameIcon]
-                .Select(x => new EntityInfo(controller, x)).ToList(), LazyThreadSafetyMode.None);
-        _miniMonoliths = new Lazy<List<EntityInfo>>(
-            () => controller.EntityListWrapper.ValidEntitiesByType[EntityType.MiniMonolith]
-                .Select(x => new EntityInfo(controller, x)).ToList(), LazyThreadSafetyMode.None);
-        _allMonsters = new Lazy<List<MonsterInfo>>(() => controller.EntityListWrapper
-            .ValidEntitiesByType[EntityType.Monster]
-            .Where(e => NearbyMonsterInfo.IsValidMonster(plugin, e, false, false))
-            .Select(x => new MonsterInfo(controller, x)).ToList(), LazyThreadSafetyMode.None);
-        _hiddenMonsters = new Lazy<List<MonsterInfo>>(() => controller.EntityListWrapper
-            .ValidEntitiesByType[EntityType.Monster]
-            .Where(e => NearbyMonsterInfo.IsValidMonster(plugin, e, false, true))
-            .Select(x => new MonsterInfo(controller, x)).ToList(), LazyThreadSafetyMode.None);
-        _corpses = new Lazy<List<MonsterInfo>>(() => controller.EntityListWrapper
-            .ValidEntitiesByType[EntityType.Monster]
-            .Where(e => NearbyMonsterInfo.IsValidMonster(plugin, e, false, false))
-            .Where(x => x.IsDead)
-            .Select(x => new MonsterInfo(controller, x)).ToList(), LazyThreadSafetyMode.None);
-        _effects = new Lazy<List<EntityInfo>>(
-            () => controller.EntityListWrapper.ValidEntitiesByType[EntityType.Effect]
-                .Select(x => new EntityInfo(controller, x)).ToList(), LazyThreadSafetyMode.None);
-        _allPlayers = new Lazy<List<MonsterInfo>>(() => controller.EntityListWrapper
-            .ValidEntitiesByType[EntityType.Player]
-            .Select(x => new MonsterInfo(controller, x)).ToList(), LazyThreadSafetyMode.None);
-        _leaderName =
-            new Lazy<string>(
-                () => controller.IngameState.ServerData.PartyMembers
-                    .FirstOrDefault(p => p.Type is PartyPlayerInfoType.Leader)?.PlayerInfo.CharacterName,
+            _mapStats = new Lazy<StatDictionary>(() => new StatDictionary(controller.IngameState.Data.MapStats),
                 LazyThreadSafetyMode.None);
-        _portals = new Lazy<List<EntityInfo>>(() => controller.EntityListWrapper
-            .ValidEntitiesByType[EntityType.TownPortal]
-            .Select(x => new EntityInfo(controller, x)).ToList(), LazyThreadSafetyMode.None);
+
+            Buffs = new BuffDictionary(playerBuffs?.BuffsList ?? [], Skills);
+
+            Flasks = new FlasksInfo(controller, InternalState);
+            Player = new MonsterInfo(controller, player);
+            _nearbyMonsterInfo = new Lazy<NearbyMonsterInfo>(() => new NearbyMonsterInfo(plugin), LazyThreadSafetyMode.None);
+            _miscellaneousObjects = new Lazy<List<EntityInfo>>(() => controller.EntityListWrapper.ValidEntitiesByType[EntityType.MiscellaneousObjects].Select(x => new EntityInfo(controller, x)).ToList(), LazyThreadSafetyMode.None);
+            _noneEntities = new Lazy<List<EntityInfo>>(() => controller.EntityListWrapper.ValidEntitiesByType[EntityType.None].Select(x => new EntityInfo(controller, x)).ToList(), LazyThreadSafetyMode.None);
+            _ingameiconObjects = new Lazy<List<EntityInfo>>(() => controller.EntityListWrapper.ValidEntitiesByType[EntityType.IngameIcon].Select(x => new EntityInfo(controller, x)).ToList(), LazyThreadSafetyMode.None);
+            _miniMonoliths = new Lazy<List<EntityInfo>>(() => controller.EntityListWrapper.ValidEntitiesByType[EntityType.MiniMonolith].Select(x => new EntityInfo(controller, x)).ToList(), LazyThreadSafetyMode.None);
+            _terrainEntities = new Lazy<List<EntityInfo>>(() => controller.EntityListWrapper.ValidEntitiesByType[EntityType.Terrain].Select(x => new EntityInfo(controller, x)).ToList(), LazyThreadSafetyMode.None);
+            _allMonsters = new Lazy<List<MonsterInfo>>(() => controller.EntityListWrapper.ValidEntitiesByType[EntityType.Monster]
+                .Where(e => NearbyMonsterInfo.IsValidMonster(plugin, e, false, false))
+                    .Select(x => new MonsterInfo(controller, x)).ToList(), LazyThreadSafetyMode.None);
+            _hiddenMonsters = new Lazy<List<MonsterInfo>>(() => controller.EntityListWrapper.ValidEntitiesByType[EntityType.Monster]
+                .Where(e => NearbyMonsterInfo.IsValidMonster(plugin, e, false, true))
+                    .Select(x => new MonsterInfo(controller, x)).ToList(), LazyThreadSafetyMode.None);
+            _corpses = new Lazy<List<MonsterInfo>>(() => controller.EntityListWrapper.ValidEntitiesByType[EntityType.Monster]
+                .Where(e => NearbyMonsterInfo.IsValidMonster(plugin, e, false, false))
+                .Where(x => x.IsDead)
+                    .Select(x => new MonsterInfo(controller, x)).ToList(), LazyThreadSafetyMode.None);
+            _effects = new Lazy<List<EntityInfo>>(() => controller.EntityListWrapper.ValidEntitiesByType[EntityType.Effect].Select(x => new EntityInfo(controller, x)).ToList(), LazyThreadSafetyMode.None);
+            _allPlayers = new Lazy<List<MonsterInfo>>(() => controller.EntityListWrapper.ValidEntitiesByType[EntityType.Player]
+                    .Select(x => new MonsterInfo(controller, x)).ToList(), LazyThreadSafetyMode.None);
+            _leaderName = new Lazy<string>(() => controller.IngameState.ServerData.PartyMembers.FirstOrDefault(p=>p.Type is PartyPlayerInfoType.Leader)?.PlayerInfo.CharacterName, LazyThreadSafetyMode.None);
+            _portals = new Lazy<List<EntityInfo>>(() => controller.EntityListWrapper.ValidEntitiesByType[EntityType.TownPortal]
+                .Select(x => new EntityInfo(controller, x)).ToList(), LazyThreadSafetyMode.None);
+        }
     }
 
     [Api] 
@@ -205,6 +192,9 @@ public class RuleState
     public IEnumerable<EntityInfo> MiniMonoliths => _miniMonoliths.Value;
 
     [Api]
+    public IEnumerable<EntityInfo> TerrainEntities => _terrainEntities.Value;
+
+    [Api]
     public IEnumerable<MonsterInfo> AllMonsters => _allMonsters.Value;
 
     [Api]
@@ -265,4 +255,7 @@ public class RuleState
 
     [Api]
     public bool IsAnyLargePanelOpen => _internalState.LargePanelVisible;
+
+    [Api]
+    public Vector2 MousePosition => _controller.IngameState.ServerData.WorldMousePositionNum.WorldToGrid();
 }
